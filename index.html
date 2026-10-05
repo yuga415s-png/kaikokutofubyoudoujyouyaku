@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>開国と不平等条約ダンジョン！</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+            background-color: #0b0b0e;
+            color: #ffffff;
+            text-align: center;
+            margin: 0;
+            padding: 15px;
+        }
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            background: #1c1c24;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+            border: 2px solid #3d3d52;
+            position: relative;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 20px; color: #ffd700; text-shadow: 0 0 8px #ff8c00; }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .sound-btn {
+            background: #2a2a3a; color: #ffd700; border: 1px solid #ffd700;
+            padding: 4px 10px; border-radius: 12px; font-size: 12px; cursor: pointer;
+        }
+
+        /* アイテムインベントリ */
+        .item-bar {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 10px;
+        }
+        .item-btn {
+            background: #2d3436; border: 1px solid #f1c40f; color: #f1c40f;
+            padding: 5px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold;
+        }
+        .item-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #555; color: #888; }
+
+        .stage-select-screen { padding: 10px 0; }
+        .stage-card-list { display: flex; flex-direction: column; gap: 12px; margin: 15px 0; }
+        .stage-card {
+            background: #121218; border: 2px solid #3d3d52; border-radius: 10px;
+            padding: 12px 15px; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; transition: all 0.2s;
+        }
+        .stage-card:hover:not(.locked) { border-color: #ffd700; background: #252535; }
+        .stage-card.locked { opacity: 0.5; cursor: not-allowed; border-color: #222; }
+        .stage-info { text-align: left; }
+        .stage-title { font-weight: bold; font-size: 16px; color: #fff; }
+        .stage-desc { font-size: 12px; color: #aaa; margin-top: 4px; }
+        .stage-badge { font-size: 18px; }
+
+        .status-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #121218; padding: 8px 15px; border-radius: 8px;
+            margin-bottom: 12px; font-size: 13px; font-weight: bold; border: 1px solid #2a2a3a;
+        }
+        .streak-count { color: #ff7675; font-size: 14px; }
+        .level-badge { background-color: #00cec9; color: #1e272e; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
+
+        .stage-area {
+            position: relative; height: 210px; border-radius: 10px; overflow: hidden;
+            border: 3px solid #4a4a5e; margin-bottom: 15px; background-color: #0a1118;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.95);
+        }
+        .wall-left, .wall-right {
+            position: absolute; top: 0; width: 35%; height: 100%;
+            background: repeating-linear-gradient(0deg, #1b262c 0px, #1b262c 15px, #0f171e 16px, #0f171e 30px);
+            z-index: 1;
+        }
+        .wall-left { left: 0; transform: perspective(200px) rotateY(45deg); transform-origin: left center; border-right: 3px solid #000; }
+        .wall-right { right: 0; transform: perspective(200px) rotateY(-45deg); transform-origin: right center; border-left: 3px solid #000; }
+        .corridor-center {
+            position: absolute; top: 0; left: 20%; width: 60%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(0,206,201,0.2), transparent 80%);
+        }
+
+        .monster-wrapper { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); width: 100%; z-index: 2; }
+        .monster-img { height: 135px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.9)); transition: transform 0.1s; }
+
+        .slash-effect {
+            opacity: 0; position: absolute; top: 50px; left: 50%; transform: translateX(-50%) rotate(-35deg);
+            width: 0px; height: 10px; background: linear-gradient(90deg, transparent, #ffffff, #00cec9, #ffffff, transparent);
+            box-shadow: 0 0 25px #00cec9, 0 0 35px #ffffff; z-index: 10; pointer-events: none;
+        }
+        .slash-active { animation: slashAnim 0.3s ease-out forwards; }
+        @keyframes slashAnim { 0% { opacity: 0; width: 0px; } 40% { opacity: 1; width: 280px; } 100% { opacity: 0; width: 300px; } }
+
+        .hit-flash { animation: hitAnimation 0.35s ease-out; }
+        @keyframes hitAnimation {
+            0% { filter: brightness(4) sepia(1) hue-rotate(120deg) saturate(5); transform: translateX(-50%) scale(1.15) rotate(3deg); }
+            50% { filter: brightness(0.2); transform: translateX(-50%) scale(0.9) rotate(-3deg); }
+            100% { filter: drop-shadow(0 10px 15px rgba(0,0,0,0.9)); transform: translateX(-50%) scale(1); }
+        }
+
+        .monster-status {
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 75%;
+            background: rgba(10, 10, 15, 0.9); padding: 6px 12px; border-radius: 12px; border: 1px solid #00cec9; z-index: 3;
+        }
+        .monster-name { font-weight: bold; font-size: 13px; color: #00cec9; margin-bottom: 4px; }
+        .hp-bar-bg { background: #2a2a35; height: 10px; border-radius: 5px; border: 1px solid #555; overflow: hidden; }
+        .hp-bar-fill { background: linear-gradient(90deg, #0984e3, #00cec9); height: 100%; width: 100%; transition: width 0.4s ease-out; }
+
+        .quiz-area { background: #121218; padding: 15px; border-radius: 8px; text-align: left; border: 1px solid #2a2a3a; }
+        .question-text { font-size: 15px; font-weight: bold; margin-bottom: 12px; line-height: 1.4; color: #fff; }
+        .options { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        
+        .btn {
+            background: linear-gradient(180deg, #2c3e50, #1a252f); color: white; border: 1px solid #34495e;
+            padding: 10px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; text-align: left; line-height: 1.3;
+        }
+        .btn:hover:not(:disabled) { background: linear-gradient(180deg, #34495e, #2c3e50); }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+
+        .immediate-exp {
+            margin-top: 12px; padding: 10px; border-radius: 6px; background: #1f1f2e; border: 1px solid #3d3d52; display: none;
+        }
+        .exp-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+        .exp-body { font-size: 13px; color: #ddd; line-height: 1.4; margin-bottom: 10px; }
+        .next-q-btn {
+            background: #2ed573; color: white; border: none; padding: 8px 16px; border-radius: 6px;
+            font-weight: bold; cursor: pointer; font-size: 13px; display: block; margin: 0 auto;
+        }
+
+        .chest-modal {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 100; border-radius: 12px;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .chest-icon { font-size: 70px; animation: bounce 0.6s infinite alternate; }
+        @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-15px); } }
+        .chest-msg { font-size: 18px; color: #ffd700; font-weight: bold; margin: 15px 0; text-shadow: 0 0 8px #ff8c00; }
+        .get-item-btn { background: #e67e22; color: white; border: none; padding: 10px 20px; font-size: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        .clear-screen { display: none; padding: 10px 0; }
+        .action-btn {
+            background: linear-gradient(180deg, #2ed573, #1e964f); color: white; border: none; padding: 10px 20px;
+            font-size: 14px; border-radius: 8px; cursor: pointer; margin: 10px 5px 0 5px; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <div style="font-size: 12px; color: #aaa;">学習範囲：開国と不平等条約</div>
+        <button class="sound-btn" onclick="toggleSound()">🔊 SOUND: <span id="soundStatus">ON</span></button>
+    </div>
+
+    <h1>⚓ 開国と不平等条約ダンジョン！ ⚓</h1>
+
+    <!-- 宝箱演出モーダル -->
+    <div id="chestModal" class="chest-modal">
+        <div id="chestIcon" class="chest-icon">📦</div>
+        <div id="chestMsg" class="chest-msg">2連続正解！宝箱を発見！</div>
+        <button class="get-item-btn" id="openChestBtn" onclick="openTreasureChest()">宝箱を開ける！</button>
+    </div>
+
+    <!-- 1. ステージ選択画面 -->
+    <div id="selectScreen" class="stage-select-screen">
+        <p style="font-size: 13px; color: #aaa; margin-bottom: 10px;">復習したいステージを選択してください（各10問）</p>
+        
+        <div class="stage-card-list">
+            <div class="stage-card" id="card1" onclick="startSelectedStage(1)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 1：黒船来航と和親条約（10問）</div>
+                    <div class="stage-desc">ペリーの来航目的や日米和親条約の基本語句問題</div>
+                </div>
+                <div class="stage-badge" id="badge1">☆</div>
+            </div>
+
+            <div class="stage-card locked" id="card2" onclick="startSelectedStage(2)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 2：修好通商条約と開港（10問）</div>
+                    <div class="stage-desc">ハリスの来航、井伊直弼の決断、開港された港の問題</div>
+                </div>
+                <div class="stage-badge" id="badge2">🔒</div>
+            </div>
+
+            <div class="stage-card locked" id="card3" onclick="startSelectedStage(3)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 3：不平等条約の真実（10問）</div>
+                    <div class="stage-desc">領事裁判権や関税自主権など条約内容を深掘りする難関問題</div>
+                </div>
+                <div class="stage-badge" id="badge3">🔒</div>
+            </div>
+        </div>
+        
+        <div style="font-size: 12px; color: #888; margin-top: 15px;">
+            現在の進捗度: <span style="color:#ffd700;" id="totalStars">☆☆☆</span>
+        </div>
+    </div>
+
+    <!-- 2. ゲームプレイ画面 -->
+    <div id="gameArea" style="display: none;">
+        <div class="status-bar">
+            <button onclick="goToSelect()" style="background:#3d3d52; color:white; border:none; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer;">◀ 戻る</button>
+            <div class="streak-count">🔥 <span id="streakNum">0</span> 連続正解</div>
+            <div><span id="levelBadge" class="level-badge">ステージ 1</span></div>
+        </div>
+
+        <!-- 所持アイテム -->
+        <div class="item-bar">
+            <button class="item-btn" id="itemTwoOptsBtn" onclick="useItemTwoOpts()">✂️ 2択にする (<span id="countTwoOpts">0</span>)</button>
+            <button class="item-btn" id="itemHintBtn" onclick="useItemHint()">💡 ヒント (<span id="countHint">0</span>)</button>
+        </div>
+
+        <div class="stage-area">
+            <div class="wall-left"></div>
+            <div class="corridor-center"></div>
+            <div class="wall-right"></div>
+            
+            <div id="slashEffect" class="slash-effect"></div>
+
+            <div class="monster-wrapper">
+                <img id="monsterImg" class="monster-img" src="" alt="モンスター">
+            </div>
+
+            <div class="monster-status">
+                <div id="monsterName" class="monster-name">モンスター名</div>
+                <div class="hp-bar-bg">
+                    <div id="hpFill" class="hp-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="quiz-area">
+            <div class="question-text" id="qText">問題文がここに入ります</div>
+            <div class="options" id="optionBtns"></div>
+
+            <div id="immediateExp" class="immediate-exp">
+                <div id="expTitle" class="exp-title"></div>
+                <div id="expBody" class="exp-body"></div>
+                <button class="next-q-btn" onclick="nextQuestion()">次の問題へ ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. クリア画面 -->
+    <div id="clearArea" class="clear-screen">
+        <h2 style="color: #ffd700; font-size: 22px;" id="clearTitle">🎉 ステージクリア！ 🎉</h2>
+        <p id="resultMessage" style="font-size: 14px; line-height: 1.5; margin: 15px 0;"></p>
+
+        <div>
+            <button class="action-btn" id="nextBtn" onclick="nextStageAction()">次のステージへ</button>
+            <button class="action-btn" style="background:#0984e3;" onclick="goToSelect()">ステージ選択へ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== Web Audio API サウンド (海・黒船テーマに刷新) ====================
+let audioCtx = null;
+let soundEnabled = true;
+let bgmInterval = null;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById("soundStatus").innerText = soundEnabled ? "ON" : "OFF";
+    if (!soundEnabled) stopBGM();
+    else playBGM('select');
+}
+
+function playSE(type) {
+    if (!soundEnabled) return;
+    initAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+
+    if (type === 'hit') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'miss') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(150, now);
+        osc.frequency.setValueAtTime(100, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'chest') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(1046.50, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'clear') {
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'triangle'; o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.setValueAtTime(freq, now + idx * 0.12);
+            g.gain.setValueAtTime(0.2, now + idx * 0.12);
+            g.gain.linearRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
+            o.start(now + idx * 0.12); o.stop(now + idx * 0.12 + 0.3);
+        });
+    }
+}
+
+function stopBGM() {
+    if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+}
+
+function playBGM(mode) {
+    if (!soundEnabled) return;
+    initAudio(); stopBGM();
+    let step = 0; let notes = []; let speed = 250;
+
+    // 海洋・黒船来航の重厚感あるスケールに変更
+    if (mode === 'select') { notes = [220, 261, 329, 261]; speed = 260; }
+    else if (mode === 1) { notes = [146, 174, 220, 174, 146, 130]; speed = 210; }
+    else if (mode === 2) { notes = [130, 155, 174, 196, 174, 155]; speed = 180; }
+    else if (mode === 3) { notes = [110, 116, 130, 146, 130, 116]; speed = 140; }
+
+    bgmInterval = setInterval(() => {
+        if (!soundEnabled) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = (mode === 'select') ? 'triangle' : (mode === 3 ? 'sawtooth' : 'sine');
+        osc.frequency.setValueAtTime(notes[step % notes.length], now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + (speed / 1000) * 0.85);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + (speed / 1000) * 0.85);
+        step++;
+    }, speed);
+}
+
+// ==================== モンスターSVG（黒船・ペリー・不平等条約モチーフ） ====================
+const monsterSVGs = [
+    // 1. 蒸気船黒船（ブラック・スクーナー）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="%23333333"/><stop offset="100%" stop-color="%23050505"/></linearGradient></defs><path d="M10 100 Q80 130 150 100 L135 125 Q80 145 25 125 Z" fill="url(%23g1)" stroke="%2300cec9" stroke-width="2"/><rect x="70" y="30" width="20" height="70" fill="%23111"/><line x1="80" y1="30" x2="80" y2="10" stroke="%2300cec9" stroke-width="2"/><rect x="40" y="50" width="8" height="50" fill="%23222"/><rect x="110" y="50" width="8" height="50" fill="%23222"/><circle cx="80" cy="50" r="10" fill="%23ff7675"/><path d="M70 20 C60 10 50 15 40 5 C50 0 70 5 80 15 Z" fill="rgba(200,200,200,0.5)"/><circle cx="45" cy="105" r="4" fill="%23ffd700"/><circle cx="80" cy="108" r="4" fill="%23ffd700"/><circle cx="115" cy="105" r="4" fill="%23ffd700"/></svg>',
+    // 2. 東インド艦隊提督ペリー影（ダーク・ペリー）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230984e3"/><stop offset="100%" stop-color="%232c3e50"/></linearGradient></defs><path d="M40 40 L120 40 L130 65 L30 65 Z" fill="%23111" stroke="%23ffd700" stroke-width="2"/><rect x="55" y="15" width="50" height="25" fill="%23111"/><circle cx="80" cy="85" r="35" fill="url(%23g2)"/><circle cx="68" cy="80" r="6" fill="%23fff"/><circle cx="92" cy="80" r="6" fill="%23fff"/><circle cx="68" cy="80" r="2" fill="%23000"/><circle cx="92" cy="80" r="2" fill="%23000"/><path d="M70 105 Q80 115 90 105" stroke="%23fff" stroke-width="3" fill="none"/><path d="M30 110 L130 110 L140 150 L20 150 Z" fill="%231e272e" stroke="%23ffd700" stroke-width="2"/></svg>',
+    // 3. 不平等条約の幻影（インイクアリティ・ゴーレム）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="g3" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="%232d3436"/><stop offset="100%" stop-color="%23111111"/></linearGradient></defs><rect x="30" y="20" width="100" height="120" rx="8" fill="url(%23g3)" stroke="%23ff7675" stroke-width="3"/><line x1="45" y1="40" x2="115" y2="40" stroke="%23aaa" stroke-width="4"/><line x1="45" y1="60" x2="115" y2="60" stroke="%23aaa" stroke-width="4"/><line x1="45" y1="80" x2="115" y2="80" stroke="%23aaa" stroke-width="4"/><circle cx="60" cy="105" r="12" fill="%23d63031"/><circle cx="100" cy="105" r="12" fill="%23d63031"/><polygon points="80,40 70,70 90,70" fill="%23ff7675"/><path d="M50 125 Q80 140 110 125" stroke="%23ff7675" stroke-width="4" fill="none"/></svg>'
+];
+
+const monsterNames = ["黒船艦隊 ブラック・スクーナー", "東インド艦隊提督 ダーク・ペリー", "不平等条約 インイクアリティ"];
+const levelBadges = ["ステージ 1：黒船来航と和親条約", "ステージ 2：修好通商条約と開港", "ステージ 3：不平等条約の真実"];
+
+// ==================== 問題データ（添付画像の教科書内容から作成：各ステージ10問：計30問） ====================
+const questionsByLevel = {
+    // ステージ1：黒船来航と日米和親条約
+    1: [
+        { q: "1853年、4隻の軍艦（黒船）を率いて浦賀（神奈川県）に来航したアメリカの東インド艦隊司令長官は誰？", options: ["ペリー", "ハリス", "オールコック", "パークス"], ans: 0, exp: "ペリーはアメリカ大統領の国書を幕府に受け取らせました。", hint: "教科書画像の上部に写真が掲載されている人物です。" },
+        { q: "アメリカが日本に開国を求める大きな目的となった、太平洋で行われていた漁業は何？", options: ["捕鯨（クジラ捕り）", "マグロ漁", "ニシン漁", "カニ漁"], ans: 0, exp: "アメリカは鯨油を採るために太平洋で捕鯨を盛んに行っていました。", hint: "鯨（クジラ）を捕まえる産業です。" },
+        { q: "1854年、再び来航したペリーの軍事的な圧力を前に、幕府がアメリカと結んだ条約は？", options: ["日米和親条約", "日米修好通商条約", "日清修好条規", "下関条約"], ans: 0, exp: "この条約により、日本は長年の「鎖国」をやめて開国しました。", hint: "「和親（平和となかよく）」を結ぶ条約です。" },
+        { q: "日米和親条約で、アメリカ船に食料や水、石炭などを供給するために開港された2つの港はどこ？", options: ["下田と函館", "横浜と神戸", "長崎と新潟", "浦賀と品川"], ans: 0, exp: "静岡県の下田と、北海道の函館（箱館）の2港が開かれました。", hint: "静岡県と北海道の港町です。" },
+        { q: "アメリカがペリーを派遣した理由として、捕鯨船の寄港地確保のほかに何への貿易船の寄港地が必要だったから？", options: ["中国（清）", "インド", "ロシア", "イギリス"], ans: 0, exp: "東アジアの中国（清）との貿易を行うため、太平洋を横断するルートの寄港地を求めました。", hint: "アヘン戦争などで欧米が進出していたアジアの大国です。" },
+        { q: "ペリーが最初に来航した「浦賀」は、現在の何県にある？", options: ["神奈川県", "静岡県", "千葉県", "東京都"], ans: 0, exp: "神奈川県の三浦半島にある浦賀に来航しました。", hint: "横浜や鎌倉がある県です。" },
+        { q: "幕府がアメリカの開国要求への対応について意見を聞いた対象として、正しいものは？", options: ["大名や朝廷", "町人や農民", "外国の商人", "清の皇帝"], ans: 0, exp: "幕府は幕末の混乱の中で大名の意見を聞き、朝廷にも報告したため、雄藩や朝廷の発言力が高まりました。", hint: "全国の領主（大名）や京都の朝廷です。" },
+        { q: "日米和親条約において、アメリカの領事を置くことが認められた場所はどこ？", options: ["下田", "函館", "江戸", "京都"], ans: 0, exp: "下田（静岡県）にアメリカの領事を置くことが認められました。", hint: "和親条約で開港された2港のうち、本州にある方です。" },
+        { q: "1853年にペリーが来航した際、人々が「たった四杯で夜もむ眠れず」と詠んだ「四杯」は何を指している？", options: ["蒸気船（黒船）", "お茶", "酒", "大砲"], ans: 0, exp: "上喜撰（高級なお茶）と「蒸気船4隻」をかけた狂歌です。", hint: "蒸気船の「隻」とお茶の数の単位をかけています。" },
+        { q: "ペリー来航後、江戸湾の防備のために品川沖に築かれた砲台施設を何という？", options: ["台場", "五稜郭", "要塞", "出島"], ans: 0, exp: "品川沖に6基の台場が作られました。現在の「お台場」の由来です。", hint: "現在の東京の人気観光地の名前の由来です。" }
+    ],
+    // ステージ2：日米修好通商条約と開港
+    2: [
+        { q: "1856年、アメリカ総領事として下田に訪れ、通商（貿易）条約を結ぶことを幕府に強く求めた人物は？", options: ["ハリス", "ペリー", "シーボルト", "オールコック"], ans: 0, exp: "ハリスは下田に着任し、幕府に通商条約の締結を迫りました。", hint: "教科書画像中央右上に名前がある総領事です。" },
+        { q: "1858年、朝廷の許可を得られないまま「日米修好通商条約」を結んだ大老は誰？", options: ["井伊直弼", "阿部正弘", "徳川慶喜", "水野忠邦"], ans: 0, exp: "彦根藩主で大老の井伊直弼は、勅許（天皇の許可）なしで条約に調印しました。", hint: "彦根藩主で大老を務めた人物です。" },
+        { q: "日米修好通商条約によって、新しく開港されることになった「5つの港」に含まれないものはどれ？", options: ["浦賀", "横浜（神奈川）", "長崎", "兵庫（神戸）"], ans: 0, exp: "開港されたのは函館・神奈川（横浜）・長崎・新潟・兵庫（神戸）の5港です。", hint: "最初にペリーがやってきた港で、開港はされていません。" },
+        { q: "日米修好通商条約により、外国人が自由な貿易を行うために開港地に設けられたエリアを何という？", options: ["外国人居留地", "出島", "租界", "城下町"], ans: 0, exp: "開港地には外国人居留地が置かれ、外国人の居住や貿易が認められました。", hint: "外国人が居留（滞在）する地域です。" },
+        { q: "日米修好通商条約で、幕府が外交の交渉を行う公使館を置くことを認めた場所はどこ？", options: ["江戸", "京都", "大阪", "名古屋"], ans: 0, exp: "将軍の膝元である「江戸」に外国の公使館を置くことが認められました。", hint: "幕府の所在地です。" },
+        { q: "井伊直弼が朝廷の許可を得ずに条約を結んだ背景にあった、アジアでの出来事は？", options: ["清がイギリス・フランスとの戦争（アロー戦争）に負けたこと", "アメリカで南北戦争が起きたこと", "インドで大反乱が起きたこと", "ロシアが南下してきたこと"], ans: 0, exp: "清が英仏に敗れたことを知り、ハリスから「今結ばないと危険だ」と迫られたためです。", hint: "隣国の「清（中国）」が欧列強に敗れたニュースです。" },
+        { q: "日米修好通商条約を結んだ後、日本がほぼ同じ内容の条約を結んだ「オランダ・ロシア・イギリス・フランス」とアメリカを合わせた5か国を何という？", options: ["安政の五か国条約", "明治の五か国盟約", "列強五連盟", "五箇条の誓文"], ans: 0, exp: "安政年間（1858年）に結ばれたため「安政の五か国条約」と呼ばれます。", hint: "元号の「安政」がつきます。" },
+        { q: "開港後、日本の貿易において最大の取引相手国となった国はどこ？", options: ["イギリス", "アメリカ", "フランス", "清"], ans: 0, exp: "日本の貿易量の約8割はイギリスが占めるようになります。", hint: "産業革命をいち早く達成した「世界の工場」です。" },
+        { q: "開港後、日本から海外へ最も多く輸出された商品は何？", options: ["生糸", "茶", "金", "米"], ans: 0, exp: "輸出の第1位は「生糸」、第2位は「茶」でした。", hint: "カイコの繭（まゆ）から作られる繊維製品です。" },
+        { q: "外国との貿易が始まったことで、国内の生糸などが不足し、庶民の生活にはどのような影響が出た？", options: ["物価が大きく上昇した", "物価が暴落した", "税金が安くなった", "商人が全員破産した"], ans: 0, exp: "商品が輸出にまわって国内で不足したため、激しい物価高騰が起きました。", hint: "品薄になったことで商品の値段が高くなりました。" }
+    ],
+    // ステージ3：不平等条約の真実と影響
+    3: [
+        { q: "日米修好通商条約が「不平等条約」と呼ばれる理由の一つで、日本側に認められていなかった権利は？", options: ["関税自主権", "領事裁判権", "治外法権", "通商拒否権"], ans: 0, exp: "日本には輸入品の関税の税率を自主的に決める「関税自主権」がありませんでした。", hint: "関税（輸入品にかける税金）を自前で決める権利です。" },
+        { q: "日本に「関税自主権」がなかったため、輸入関税の税率はどのように決められた？", options: ["相手国との話し合い（協定）で決められた", "日本が一方的に自由に決めた", "国連が決定した", "税金は一切かけられなかった"], ans: 0, exp: "相手国との協定で低い税率に抑えられてしまいました。", hint: "日本単独ではなく相手との話し合いで決めさせられました。" },
+        { q: "日本で罪を犯した外国人を、その国の領事が自国の法律で裁く権利を何という？", options: ["領事裁判権（治外法権）", "関税自主権", "司法権の独立", "最高裁判権"], ans: 0, exp: "領事裁判権を認めたため、日本人を害した外国人が十分に処罰されない不平生が生じました。", hint: "外国の「領事」が「裁判」する権利です。" },
+        { q: "日米修好通商条約の第4条で、日本への輸入が厳しく禁止されていた薬品・危険物は何？", options: ["アヘン", "麻薬", "大麻", "覚醒剤"], ans: 0, exp: "清がアヘン戦争で苦しんだことを踏まえ、アヘンの輸入は禁止（3か月以上持ち込んだら没収）とされました。", hint: "清（中国）で中毒者を激増させ戦争の引き金になった薬物です。" },
+        { q: "不平等条約によって、日本と外国の「金と銀の交換比率の違い」から大量に国外へ流出したものは何？", options: ["小判（金）", "銀貨", "銅銭", "米"], ans: 0, exp: "日本と海外で金銀の比率が異なっていたため、日本の金（小判）が大量に海外へ流出しました。", hint: "日本の価値ある黄金（小判など）です。" },
+        { q: "日米和親条約の第9条に規定された「日本が他国に与えた最も良い条件を、アメリカにも自動的に与える」という規定を何という？", options: ["片務的最恵国待遇", "相互平等権", "永世中立権", "最優先貿易権"], ans: 0, exp: "アメリカだけに有利な「片務的最恵国待遇」も不平等な点の一つでした。", hint: "「最も恵まれた国」として扱う規定です。" },
+        { q: "日米修好通商条約の調印にあたり、井伊直弼が直面した国内の大きな反対勢力は？", options: ["朝廷や攘夷派の大名", "農民の一揆団体", "外国の商人たち", "江戸の町人たち"], ans: 0, exp: "外国を排除しようとする「攘夷派」や、勅許を重視する朝廷・大名が激しく反対しました。", hint: "天皇のいる京都の政治勢力や外国排除を唱える大名です。" },
+        { q: "ハリスが総領事として滞在し、幕府と粘り強く交渉を行った静岡県の寺院がある町はどこ？", options: ["下田", "沼津", "清水", "三島"], ans: 0, exp: "ハリスは下田の玉泉寺に領事館を置きました。", hint: "日米和親条約で開港した2港のうちの1つです。" },
+        { q: "条約締結後、大量の金流出を防ぐために幕府が行った貨幣改鋳（貨幣の質を落とすこと）が引き起こした経済混乱は？", options: ["激しいインフレーション（物価の高騰）", "デフレ（物価の下落）", "外国為替の安定", "貿易の完全ストップ"], ans: 0, exp: "金の含有量を減らした貨幣を発行したため、貨幣の価値が下がり物価がさらに高騰しました。", hint: "お金の価値が下がってモノの値段が上がる現象です。" },
+        { q: "明治時代になってから、岩倉使節団や睦奥宗光・小村寿太郎らが心血を注いだ外交上の最大の課題は何？", options: ["不平等条約の改正", "鎖国体制への復帰", "アメリカとの戦争", "海外領土の放棄"], ans: 0, exp: "幕末に結ばされた「領事裁判権の撤廃」と「関税自主権の回復」を目指す条約改正が長年の課題となりました。", hint: "幕末に結ばれた不利な条件（不平等）を正すことです。" }
+    ]
+};
+
+// ==================== ゲーム状態変数 ====================
+let userProgress = JSON.parse(localStorage.getItem('dungeon_progress_v3')) || { 1: 0, 2: 0, 3: 0 };
+let currentStage = 1;
+let currentQ = 0;
+let correctAnswersCount = 0;
+let streakCount = 0;
+
+let items = { twoOpts: 0, hint: 0 };
+
+// ==================== 画面遷移・処理 ====================
+function updateSelectScreenUI() {
+    for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`card${i}`);
+        const badge = document.getElementById(`badge${i}`);
+        const isUnlocked = (i === 1) || (userProgress[i - 1] > 0);
+
+        if (isUnlocked) {
+            card.classList.remove('locked');
+            badge.innerText = (userProgress[i] > 0) ? "★" : "☆";
+        } else {
+            card.classList.add('locked');
+            badge.innerText = "🔒";
+        }
+    }
+    let total = 0;
+    for (let i = 1; i <= 3; i++) if (userProgress[i] > 0) total++;
+    document.getElementById("totalStars").innerText = "★".repeat(total) + "☆".repeat(3 - total);
+}
+
+function startSelectedStage(stageNum) {
+    const isUnlocked = (stageNum === 1) || (userProgress[stageNum - 1] > 0);
+    if (!isUnlocked) { alert("前のステージをクリアすると解放されます！"); return; }
+
+    currentStage = stageNum;
+    currentQ = 0;
+    correctAnswersCount = 0;
+    streakCount = 0;
+
+    document.getElementById("selectScreen").style.display = "none";
+    document.getElementById("clearArea").style.display = "none";
+    document.getElementById("gameArea").style.display = "block";
+
+    updateItemUI();
+    playBGM(currentStage);
+    loadQuestion();
+}
+
+function goToSelect() {
+    updateSelectScreenUI();
+    document.getElementById("gameArea").style.display = "none";
+    document.getElementById("clearArea").style.display = "none";
+    document.getElementById("selectScreen").style.display = "block";
+    playBGM('select');
+}
+
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function updateItemUI() {
+    document.getElementById("countTwoOpts").innerText = items.twoOpts;
+    document.getElementById("countHint").innerText = items.hint;
+    document.getElementById("itemTwoOptsBtn").disabled = (items.twoOpts <= 0);
+    document.getElementById("itemHintBtn").disabled = (items.hint <= 0);
+    document.getElementById("streakNum").innerText = streakCount;
+}
+
+function loadQuestion() {
+    const qData = questionsByLevel[currentStage][currentQ];
+    
+    document.getElementById("immediateExp").style.display = "none";
+    document.getElementById("qText").innerText = `${currentQ + 1}. ${qData.q}`;
+    
+    const idx = currentStage - 1;
+    document.getElementById("monsterImg").src = monsterSVGs[idx];
+    document.getElementById("monsterName").innerText = monsterNames[idx];
+    document.getElementById("levelBadge").innerText = levelBadges[idx];
+
+    const totalQ = questionsByLevel[currentStage].length;
+    const remainingHpPercent = ((totalQ - correctAnswersCount) / totalQ) * 100;
+    document.getElementById("hpFill").style.width = remainingHpPercent + "%";
+
+    const container = document.getElementById("optionBtns");
+    container.innerHTML = "";
+    
+    const shuffledOptions = shuffleArray(qData.options);
+    shuffledOptions.forEach((optText) => {
+        const btn = document.createElement("button");
+        btn.className = "btn";
+        btn.innerText = optText;
+        btn.onclick = () => checkAnswer(optText, qData.options[qData.ans], qData);
+        container.appendChild(btn);
+    });
+
+    updateItemUI();
+}
+
+function checkAnswer(selectedText, correctText, qData) {
+    const btns = document.querySelectorAll(".btn");
+    btns.forEach(b => b.disabled = true);
+
+    const monsterImg = document.getElementById("monsterImg");
+    const slashEffect = document.getElementById("slashEffect");
+    const expBox = document.getElementById("immediateExp");
+    const expTitle = document.getElementById("expTitle");
+    const expBody = document.getElementById("expBody");
+
+    let isCorrect = (selectedText === correctText);
+
+    if (isCorrect) {
+        correctAnswersCount++;
+        streakCount++;
+        playSE('hit');
+
+        slashEffect.classList.remove("slash-active"); void slashEffect.offsetWidth;
+        slashEffect.classList.add("slash-active");
+
+        monsterImg.classList.remove("hit-flash"); void monsterImg.offsetWidth;
+        monsterImg.classList.add("hit-flash");
+
+        const totalQ = questionsByLevel[currentStage].length;
+        document.getElementById("hpFill").style.width = (((totalQ - correctAnswersCount) / totalQ) * 100) + "%";
+
+        expTitle.innerHTML = "<span style='color:#2ed573;'>⚔️ 砲撃ヒット！正解！</span>";
+    } else {
+        streakCount = 0;
+        playSE('miss');
+        expTitle.innerHTML = `<span style='color:#ff4757;'>❌ 命中せず... (正解: ${correctText})</span>`;
+    }
+
+    expBody.innerText = qData.exp;
+    expBox.style.display = "block";
+
+    updateItemUI();
+
+    if (isCorrect && streakCount > 0 && streakCount % 2 === 0) {
+        setTimeout(() => { showChestModal(); }, 600);
+    }
+}
+
+function showChestModal() {
+    playSE('chest');
+    document.getElementById("chestIcon").innerText = "📦";
+    document.getElementById("chestMsg").innerText = `${streakCount}連続正解！宝箱を発見！`;
+    document.getElementById("openChestBtn").style.display = "inline-block";
+    document.getElementById("chestModal").style.display = "flex";
+}
+
+function openTreasureChest() {
+    const gotItem = (Math.random() < 0.5) ? 'twoOpts' : 'hint';
+    if (gotItem === 'twoOpts') {
+        items.twoOpts++;
+        document.getElementById("chestIcon").innerText = "✂️";
+        document.getElementById("chestMsg").innerText = "「2択にする」アイテムをゲット！";
+    } else {
+        items.hint++;
+        document.getElementById("chestIcon").innerText = "💡";
+        document.getElementById("chestMsg").innerText = "「ヒント」アイテムをゲット！";
+    }
+    document.getElementById("openChestBtn").style.display = "none";
+    updateItemUI();
+
+    setTimeout(() => {
+        document.getElementById("chestModal").style.display = "none";
+    }, 1200);
+}
+
+function useItemTwoOpts() {
+    if (items.twoOpts <= 0) return;
+    items.twoOpts--;
+    updateItemUI();
+
+    const qData = questionsByLevel[currentStage][currentQ];
+    const correctText = qData.options[qData.ans];
+    const btns = Array.from(document.querySelectorAll(".btn"));
+
+    let removed = 0;
+    btns.forEach(btn => {
+        if (btn.innerText !== correctText && removed < 2) {
+            btn.style.visibility = "hidden";
+            removed++;
+        }
+    });
+}
+
+function useItemHint() {
+    if (items.hint <= 0) return;
+    items.hint--;
+    updateItemUI();
+
+    const qData = questionsByLevel[currentStage][currentQ];
+    alert(`💡 ヒント: ${qData.hint}`);
+}
+
+function nextQuestion() {
+    currentQ++;
+    const totalQ = questionsByLevel[currentStage].length;
+
+    if (currentQ < totalQ) {
+        loadQuestion();
+    } else {
+        finishStage();
+    }
+}
+
+function finishStage() {
+    playSE('clear');
+    stopBGM();
+
+    document.getElementById("gameArea").style.display = "none";
+    document.getElementById("clearArea").style.display = "block";
+
+    const totalQ = questionsByLevel[currentStage].length;
+    const scoreText = `${totalQ}問中 ${correctAnswersCount}問 正解！`;
+
+    userProgress[currentStage] = Math.max(userProgress[currentStage], correctAnswersCount);
+    localStorage.setItem('dungeon_progress_v3', JSON.stringify(userProgress));
+
+    document.getElementById("clearTitle").innerText = `🎉 ステージ ${currentStage} 撃破！ 🎉`;
+    document.getElementById("resultMessage").innerHTML = `${scoreText}<br>開国と条約の歴史についての知識が深まりました！`;
+
+    const nextBtn = document.getElementById("nextBtn");
+    if (currentStage < 3) {
+        nextBtn.style.display = "inline-block";
+    } else {
+        nextBtn.style.display = "none";
+    }
+}
+
+function nextStageAction() {
+    if (currentStage < 3) {
+        startSelectedStage(currentStage + 1);
+    }
+}
+
+// 初期化
+updateSelectScreenUI();
+playBGM('select');
+</script>
+
+</body>
+</html>
